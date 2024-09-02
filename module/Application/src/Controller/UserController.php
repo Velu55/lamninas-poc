@@ -15,10 +15,11 @@ use Laminas\Validator\StringLength;
 use Laminas\Validator\Digits;
 use Laminas\Http\Header\SetCookie;
 
-class UserController extends AbstractActionController
+class UserController extends BaseController
 {
     private $table;
     private $jwtService;
+
     public function __construct(UserTable $table, JwtService $jwtService)
     {
         $this->table = $table;
@@ -29,31 +30,92 @@ class UserController extends AbstractActionController
         $this->passwordValidator = new StringLength(['min' => 6]);
         $this->roleValidator = new NotEmpty();
     }
-
+    public function loginAction(){
+      
+        try{
+            $this->setCorsHeaders();
+            $data = $this->getRequest()->getPost();
+             // $request = $this->getRequest()->getContent();
+           // $data = json_decode($request, true);
+            
+            $result =  $this->table->loginCheck($data['email'],$data['password']);
+            if(!empty($result)){
+                if($result->role == "Admin") {
+                    $data = ['id' => $result->id,'name'=> $result->name,'email'=>$result->email];
+                    $token = $this->jwtService->generateToken($data);
+                    $this->getResponse()->setStatusCode(200);
+                    return new JsonModel([
+                        "success" => true,
+                        "message" => "Logged In sucessfully",
+                        "status_code" => 200,
+                        "data" => null,
+                        "token" => $token,
+                    ]);
+                }else{
+                    $this->getResponse()->setStatusCode(401);
+                    return new JsonModel([
+                        "success" => false,
+                        'message' => "Unauthendicated...!",
+                        "error_code" => 401,
+                        "data" => null,
+                    ]);
+                }
+            }else{
+                $this->getResponse()->setStatusCode(401);
+                return new JsonModel([
+                    "success" => false,
+                    'message' => "Email Id or Password Incorrect...!",
+                    "error_code" => 401,
+                    "data" => null,
+                ]);
+            }
+        }catch(\Exception $e) {
+            $this->getResponse()->setStatusCode(500);
+            return new JsonModel([
+                "success" => false,
+                'message' => "Some thing went wrong...!",
+                "error_code" => 500,
+                "data" => $e,
+            ]);
+        }
+    }
     public function listAction()
     {
         try{
-            $response = $this->getResponse();
+             $this->setCorsHeaders();
             $result = $this->jwtService->checkExp($this->getRequest());
             if(!empty($result)){
-                 $this->getResponse()->setStatusCode(401);
+                //$this->getResponse()->setStatusCode(401);
                 return new JsonModel([
-                'message' => $result['message'],
+                    "success" => false,
+                    'message' => $result['message'],
+                    "error_code" => 401,
+                    "data" => null,
                 ]);
             }
             $users = $this->table->fetchAll();
             if(!$users){
                 $this->getResponse()->setStatusCode(200);
                 return new JsonModel([
-                'message' => "No user Found...!",
+                    "success" => true,
+                    'message' => "No user Found...!",
+                    "status_code" => 200,
+                    "data" => null,
                 ]);
             }
-            return new JsonModel(['data' => $users->toArray()]);
+            return new JsonModel([
+                "success" => true,
+                'message' => "Users Found...!",
+                "status_code" => 200,
+                'data' => $users->toArray()
+            ]);
         }catch(\Exception $e) {
             $this->getResponse()->setStatusCode(500);
             return new JsonModels([
+               "success" => false,
                 'message' => "Some thing went wrong...!",
-                'error' => $e
+                "error_code" => 500,
+                "data" => $e,
             ]);
         }
     }
@@ -61,26 +123,42 @@ class UserController extends AbstractActionController
     public function getAction()
     {
         try{
+            $this->setCorsHeaders();
             $result = $this->jwtService->checkExp($this->getRequest());
             if(!empty($result)){
-                 $this->getResponse()->setStatusCode(401);
+                $this->getResponse()->setStatusCode(401);
                 return new JsonModel([
-                'message' => $result['message'],
+                    "success" => false,
+                    'message' => $result['message'],
+                    "error_code" => 401,
+                    "data" => null,
                 ]);
             }
             $id = $this->params()->fromRoute('id');
             $user = $this->table->getUser($id);
             if(empty($user)){
                 $this->getResponse()->setStatusCode(404);
-                return new JsonModel(['message' => "User Not found..!"]);
+                return new JsonModel([
+                    "success" => false,
+                    'message' => "User Not found..!",
+                    "error_code" => 404,
+                    "data" => null,
+                ]);
             }
              $this->getResponse()->setStatusCode(200);
-            return new JsonModel(['message' => "User found..!",'data' => $user]);
+            return new JsonModel([
+                    "success" => true,
+                    'message' => "User found..!",
+                    "status_code" => 200,
+                    'data' => $user
+            ]);
         }catch(\Exception $e) {
             $this->getResponse()->setStatusCode(500);
             return new JsonModel([
+                "success" => false,
                 'message' => "Some thing went wrong...!",
-                'error' => $e
+                "error_code" => 500,
+                "data" => $e,
             ]);
         }
       
@@ -89,8 +167,9 @@ class UserController extends AbstractActionController
     public function createAction()
     {
         try{
-            $request = $this->getRequest()->getContent();
-            $data = json_decode($request, true);
+            $this->setCorsHeaders();
+            $data = $this->getRequest()->getPost();
+            //$data = json_decode($request, true);
             $validationerr = false;
             $validationmsg = array();
            
@@ -120,35 +199,49 @@ class UserController extends AbstractActionController
                 
                 $this->getResponse()->setStatusCode(400);
                 return new JsonModel([
-                    'message' => 'Validation Errors',
-                    'Errors' => $validationmsg,
+                    "success" => false,
+                    'message' => "Validation Errors...!",
+                    "error_code" => 400,
+                    "data" => $validationmsg,
                 ]);
             }
+            
             $result = $this->jwtService->checkExp($this->getRequest());
             if(!empty($result)){
-                 $this->getResponse()->setStatusCode(401);
+                $this->getResponse()->setStatusCode(401);
                 return new JsonModel([
-                'message' => $result['message'],
+                    "success" => false,
+                    'message' => $result['message'],
+                    "error_code" => 401,
+                    "data" => null,
                 ]);
             }
             
             $user = $this->table->getUserbyEmail($data['email']);
             if($user){
-                $this->getResponse()->setStatusCode(409);
+               $this->getResponse()->setStatusCode(409);
                 return new JsonModel([
+                    "success" => false,
                     'message' => "Email ID Already Exsist...!",
+                    "error_code" => 409,
+                    "data" => null,
                 ]);
             }
-            $user = new User();
-            $user->exchangeArray($data); 
-           
-            $result =  $this->table->saveUser($user);
-            return new JsonModel(['result' => $result, "message"=>"User Created Successfully..!"]);
+            $result =  $this->table->saveUser($data);
+            $this->getResponse()->setStatusCode(201);
+            return new JsonModel([
+                "success" => true,
+                'message' => "User Created Successfully..!",
+                "status_code" => 201,
+                "data" => $result,
+            ]);
         }catch(\Exception $e) {
             $this->getResponse()->setStatusCode(500);
             return new JsonModel([
+                "success" => false,
                 'message' => "Some thing went wrong...!",
-                'error' => $e
+                "error_code" => 500,
+                "data" => $e,
             ]);
         }
     }
@@ -156,8 +249,10 @@ class UserController extends AbstractActionController
     public function updateAction()
     {
         try{
-            $request = $this->getRequest()->getContent();
-            $data = json_decode($request, true);
+            // $request = $this->getRequest()->getContent();
+            // $data = json_decode($request, true);
+            $this->setCorsHeaders();
+            $data = $this->getRequest()->getPost();
             $validationerr = false;
             $validationmsg = array();
            
@@ -184,33 +279,49 @@ class UserController extends AbstractActionController
             if($validationerr){
                 $this->getResponse()->setStatusCode(400);
                 return new JsonModel([
-                    'message' => 'Validation Errors',
-                    'Errors' => $validationmsg,
+                    "success" => false,
+                    'message' => "Validation Errors...!",
+                    "error_code" => 400,
+                    "data" => $validationmsg,
                 ]);
             }
             $result = $this->jwtService->checkExp($this->getRequest());
             if(!empty($result)){
-                 $this->getResponse()->setStatusCode(401);
+                $this->getResponse()->setStatusCode(401);
                 return new JsonModel([
-                'message' => $result['message'],
+                    "success" => false,
+                    'message' => $result['message'],
+                    "error_code" => 401,
+                    "data" => null,
                 ]);
             }
             $id = $data['id'];
             $user = $this->table->getUser($id);
             if(!$user){
-              $this->getResponse()->setStatusCode(404);
+                $this->getResponse()->setStatusCode(404);
                 return new JsonModel([
+                    "success" => false,
                     'message' => "User Not Found..!",
+                    "error_code" => 400,
+                    "data" => null,
                 ]);
             }
-            $user->exchangeArray($data);
-            $this->table->saveUser($user);
-            return new JsonModel(['data' => $user]);
+            //$user->exchangeArray($data);
+            $this->table->saveUser($data);
+            $this->getResponse()->setStatusCode(200);
+            return new JsonModel([
+                "success" => true,
+                'message' => "User updated..!",
+                "status_code" => 200,
+                'data' => $user
+            ]);
         }catch(\Exception $e) {
             $this->getResponse()->setStatusCode(500);
             return new JsonModel([
+                "success" => false,
                 'message' => "Some thing went wrong...!",
-                'error' => $e
+                "error_code" => 500,
+                "data" => $e,
             ]);
         }
     }
@@ -221,7 +332,10 @@ class UserController extends AbstractActionController
             if(!empty($result)){
                  $this->getResponse()->setStatusCode(401);
                 return new JsonModel([
-                'message' => $result['message'],
+                    "success" => false,
+                    'message' => $result['message'],
+                    "error_code" => 401,
+                    "data" => null,
                 ]);
             }
             $id = $this->params()->fromRoute('id');
@@ -229,55 +343,30 @@ class UserController extends AbstractActionController
             if(empty($user)){
                 $this->getResponse()->setStatusCode(404);
                 return new JsonModel([
-                'message' => 'User Not Found...!',
+                    "success" => false,
+                    'message' => "User Not Found...!",
+                    "error_code" => 404,
+                    "data" => null,
                 ]);
             }
             $this->table->deleteUser($id);
             $this->getResponse()->setStatusCode(200);
-            return new JsonModel(['message' => 'User deleted']);
+            return new JsonModel([
+                "success" => true,
+                'message' => "User deleted...!",
+                "status_code" => 200,
+                "data" => null,
+            ]);
         }catch(\Exception $e) {
             $this->getResponse()->setStatusCode(500);
             return new JsonModel([
+                "success" => false,
                 'message' => "Some thing went wrong...!",
-                'error' => $e
+                "error_code" => 500,
+                "data" => $e,
             ]);
         }
        
     }
-    public function loginAction(){
-      
-        try{
-            // $data = $this->params()->fromPost();
-              $request = $this->getRequest()->getContent();
-            $data = json_decode($request, true);
-            $result =  $this->table->loginCheck($data['email'],$data['password']);
-            if(!empty($result)){
-                if($result->role == "admin") {
-                    $data = ['id' => $result->id,'name'=> $result->name,'email'=>$result->email];
-                    $token = $this->jwtService->generateToken($data);
-                    $this->getResponse()->setStatusCode(200);
-                    return new JsonModel([
-                        'message' => "Logged In Successfully..!",
-                        'JWT' => $token
-                    ]);
-                }else{
-                    $this->getResponse()->setStatusCode(401);
-                    return new JsonModel([
-                        'message' => "Unauthendicated...!",
-                    ]);
-                }
-            }else{
-                $this->getResponse()->setStatusCode(401);
-                return new JsonModel([
-                    'message' => "Email Id or Password Incorrect...!",
-                ]);
-            }
-        }catch(\Exception $e) {
-            $this->getResponse()->setStatusCode(500);
-            return new JsonModel([
-                'message' => "Some thing went wrong...!",
-                'error' => $e
-            ]);
-        }
-    }
+    
 }

@@ -12,7 +12,7 @@ class JwtService
     public function generateToken(array $data)
     {
         $issuedAt = time();
-        $expirationTime = $issuedAt + 3600;  // jwt valid for 1 hour from the issued time
+        $expirationTime = $issuedAt + 36000;
         $payload = array(
             'iat' => $issuedAt,
             'exp' => $expirationTime,

@@ -30,29 +30,27 @@ class UserTable
         $rowset = $this->tableGateway->select(['email' => $email]);
         return $rowset->current();
     }
-    public function saveUser(User $user)
+    public function saveUser($data)
     {
         
-
-        $id = (int) $user->id;
-
-        if ($id === 0) {
-           
-            $hashedPassword = password_hash($user->password, PASSWORD_DEFAULT);
+        if(!isset($data['id'])){
+          
+            $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
             
             $data = [
-                'name'  => $user->name,
-                'email' => $user->email,
+                'name'  => $data['name'],
+                'email' => $data['email'],
                 'password' => $hashedPassword,
-                'role' => $user->role
+                'role' => $data['role']
             ];    
            return $this->tableGateway->insert($data);
         } else {
-            if ($this->getUser($id)) {
+            if ($data['id']) {
+                $id = $data['id'];
                   $data = [
-                    'name'  => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role
+                    'name'  => $data['name'],
+                    'email' => $data['email'],
+                    'role' => $data['role']
                 ];    
                return $this->tableGateway->update($data, ['id' => $id]);
             } else {
